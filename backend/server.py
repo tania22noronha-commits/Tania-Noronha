@@ -1,72 +1,397 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
 from datetime import datetime, timezone
+from typing import List
+import asyncio
+import json
 
+from models import (
+    User, UserCreate, UserLogin, World, WorldCreate, Agent, Event,
+    Relationship, Business, SimulationStats, Story, NewspaperArticle, Policy, Government
+)
+from auth import hash_password, verify_password, create_token, get_current_user
+from agent_generator import generate_agents
+from simulation_engine import SimulationEngine, trigger_god_mode_event
+from ai_engine import generate_story_summary, generate_newspaper_article
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
 app = FastAPI()
-
-# Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
+simulation_tasks = {}
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+@api_router.post("/auth/register")
+async def register(user_data: UserCreate):
+    existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
     
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
+    hashed_pw = hash_password(user_data.password)
+    user = User(email=user_data.email, username=user_data.username)
+    user_dict = user.model_dump()
+    user_dict['password'] = hashed_pw
+    user_dict['created_at'] = user_dict['created_at'].isoformat()
     
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
+    await db.users.insert_one(user_dict)
+    token = create_token(user.id)
     
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
+    return {"token": token, "user": user}
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
+@api_router.post("/auth/login")
+async def login(credentials: UserLogin):
+    user_doc = await db.users.find_one({"email": credentials.email}, {"_id": 0})
+    if not user_doc or not verify_password(credentials.password, user_doc['password']):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
+    token = create_token(user_doc['id'])
+    user = User(**user_doc)
     
-    return status_checks
+    return {"token": token, "user": user}
 
-# Include the router in the main app
+@api_router.post("/worlds", response_model=World)
+async def create_world(world_data: WorldCreate, user_id: str = Depends(get_current_user)):
+    world = World(user_id=user_id, name=world_data.name)
+    world_dict = world.model_dump()
+    world_dict['created_at'] = world_dict['created_at'].isoformat()
+    world_dict['simulated_date'] = world_dict['simulated_date'].isoformat()
+    
+    await db.worlds.insert_one(world_dict)
+    
+    agents = generate_agents(world.id, count=100)
+    agent_dicts = []
+    for agent in agents:
+        agent_dict = agent.model_dump()
+        agent_dict['created_at'] = agent_dict['created_at'].isoformat()
+        agent_dicts.append(agent_dict)
+    
+    await db.agents.insert_many(agent_dicts)
+    
+    await db.worlds.update_one(
+        {"id": world.id},
+        {"$set": {"population": 100}}
+    )
+    
+    government = Government(world_id=world.id)
+    await db.governments.insert_one(government.model_dump())
+    
+    return world
+
+@api_router.get("/worlds", response_model=List[World])
+async def get_worlds(user_id: str = Depends(get_current_user)):
+    worlds = await db.worlds.find({"user_id": user_id}, {"_id": 0}).to_list(100)
+    for world in worlds:
+        if isinstance(world.get('created_at'), str):
+            world['created_at'] = datetime.fromisoformat(world['created_at'])
+        if isinstance(world.get('simulated_date'), str):
+            world['simulated_date'] = datetime.fromisoformat(world['simulated_date'])
+    return worlds
+
+@api_router.get("/worlds/{world_id}")
+async def get_world(world_id: str, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id}, {"_id": 0})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    if isinstance(world.get('created_at'), str):
+        world['created_at'] = datetime.fromisoformat(world['created_at'])
+    if isinstance(world.get('simulated_date'), str):
+        world['simulated_date'] = datetime.fromisoformat(world['simulated_date'])
+    
+    return world
+
+@api_router.delete("/worlds/{world_id}")
+async def delete_world(world_id: str, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    await db.worlds.delete_one({"id": world_id})
+    await db.agents.delete_many({"world_id": world_id})
+    await db.events.delete_many({"world_id": world_id})
+    await db.relationships.delete_many({"world_id": world_id})
+    await db.businesses.delete_many({"world_id": world_id})
+    await db.stories.delete_many({"world_id": world_id})
+    await db.newspapers.delete_many({"world_id": world_id})
+    await db.governments.delete_many({"world_id": world_id})
+    
+    if world_id in simulation_tasks:
+        simulation_tasks[world_id].cancel()
+        del simulation_tasks[world_id]
+    
+    return {"message": "World deleted"}
+
+@api_router.get("/worlds/{world_id}/stats", response_model=SimulationStats)
+async def get_world_stats(world_id: str, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id}, {"_id": 0})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    agents = await db.agents.find({"world_id": world_id}, {"_id": 0}).to_list(1000)
+    businesses = await db.businesses.find({"world_id": world_id}, {"_id": 0}).to_list(1000)
+    relationships = await db.relationships.find({"world_id": world_id}, {"_id": 0}).to_list(1000)
+    government = await db.governments.find_one({"world_id": world_id}, {"_id": 0})
+    
+    total_wealth = sum(a.get('resources', {}).get('wealth', 0) for a in agents)
+    avg_income = sum(a.get('resources', {}).get('income', 0) for a in agents) / len(agents) if agents else 0
+    avg_happiness = sum(a.get('emotional_state', {}).get('happiness', 70) for a in agents) / len(agents) if agents else 70
+    
+    employed = len([a for a in agents if a.get('occupation') != 'Unemployed'])
+    employment_rate = (employed / len(agents) * 100) if agents else 85
+    
+    mayor_name = None
+    if government and government.get('mayor_id'):
+        mayor = await db.agents.find_one({"id": government['mayor_id']}, {"_id": 0})
+        if mayor:
+            mayor_name = mayor['name']
+    
+    return SimulationStats(
+        population=len(agents),
+        births=0,
+        deaths=0,
+        total_wealth=total_wealth,
+        average_income=avg_income,
+        business_count=len(businesses),
+        employment_rate=employment_rate,
+        average_happiness=int(avg_happiness),
+        relationship_count=len(relationships),
+        crime_rate=world.get('crime_rate', 5.0),
+        trust_index=70,
+        mayor_name=mayor_name,
+        approval_rating=government.get('approval_rating', 50) if government else 50
+    )
+
+@api_router.get("/worlds/{world_id}/agents", response_model=List[Agent])
+async def get_agents(world_id: str, user_id: str = Depends(get_current_user), limit: int = 100):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    agents = await db.agents.find({"world_id": world_id}, {"_id": 0}).limit(limit).to_list(limit)
+    
+    for agent in agents:
+        if isinstance(agent.get('created_at'), str):
+            agent['created_at'] = datetime.fromisoformat(agent['created_at'])
+    
+    return agents
+
+@api_router.get("/worlds/{world_id}/agents/{agent_id}")
+async def get_agent(world_id: str, agent_id: str, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    agent = await db.agents.find_one({"id": agent_id, "world_id": world_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    if isinstance(agent.get('created_at'), str):
+        agent['created_at'] = datetime.fromisoformat(agent['created_at'])
+    
+    relationships = await db.relationships.find({
+        "world_id": world_id,
+        "$or": [{"agent1_id": agent_id}, {"agent2_id": agent_id}]
+    }, {"_id": 0}).to_list(100)
+    
+    for rel in relationships:
+        other_id = rel['agent2_id'] if rel['agent1_id'] == agent_id else rel['agent1_id']
+        other_agent = await db.agents.find_one({"id": other_id}, {"_id": 0, "name": 1})
+        rel['other_agent_name'] = other_agent['name'] if other_agent else "Unknown"
+    
+    agent['relationships'] = relationships
+    
+    return agent
+
+@api_router.get("/worlds/{world_id}/events")
+async def get_events(world_id: str, user_id: str = Depends(get_current_user), limit: int = 50):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    events = await db.events.find({"world_id": world_id}, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
+    
+    for event in events:
+        if isinstance(event.get('timestamp'), str):
+            event['timestamp'] = datetime.fromisoformat(event['timestamp'])
+    
+    return events
+
+@api_router.get("/worlds/{world_id}/relationships")
+async def get_relationships(world_id: str, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    relationships = await db.relationships.find({"world_id": world_id}, {"_id": 0}).to_list(500)
+    
+    for rel in relationships:
+        if isinstance(rel.get('created_at'), str):
+            rel['created_at'] = datetime.fromisoformat(rel['created_at'])
+        
+        agent1 = await db.agents.find_one({"id": rel['agent1_id']}, {"_id": 0, "name": 1})
+        agent2 = await db.agents.find_one({"id": rel['agent2_id']}, {"_id": 0, "name": 1})
+        
+        rel['agent1_name'] = agent1['name'] if agent1 else "Unknown"
+        rel['agent2_name'] = agent2['name'] if agent2 else "Unknown"
+    
+    return relationships
+
+@api_router.get("/worlds/{world_id}/businesses")
+async def get_businesses(world_id: str, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    businesses = await db.businesses.find({"world_id": world_id}, {"_id": 0}).to_list(500)
+    
+    for business in businesses:
+        if isinstance(business.get('created_at'), str):
+            business['created_at'] = datetime.fromisoformat(business['created_at'])
+        
+        owner = await db.agents.find_one({"id": business['owner_id']}, {"_id": 0, "name": 1})
+        business['owner_name'] = owner['name'] if owner else "Unknown"
+    
+    return businesses
+
+@api_router.post("/worlds/{world_id}/simulation/start")
+async def start_simulation(world_id: str, background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    await db.worlds.update_one(
+        {"id": world_id},
+        {"$set": {"settings.is_paused": False}}
+    )
+    
+    if world_id not in simulation_tasks:
+        task = asyncio.create_task(run_simulation_loop(world_id))
+        simulation_tasks[world_id] = task
+    
+    return {"message": "Simulation started"}
+
+@api_router.post("/worlds/{world_id}/simulation/pause")
+async def pause_simulation(world_id: str, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    await db.worlds.update_one(
+        {"id": world_id},
+        {"$set": {"settings.is_paused": True}}
+    )
+    
+    return {"message": "Simulation paused"}
+
+@api_router.post("/worlds/{world_id}/simulation/speed")
+async def set_simulation_speed(world_id: str, speed: float, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    await db.worlds.update_one(
+        {"id": world_id},
+        {"$set": {"settings.simulation_speed": speed}}
+    )
+    
+    return {"message": f"Speed set to {speed}x"}
+
+@api_router.post("/worlds/{world_id}/god-mode/{event_type}")
+async def trigger_god_event(world_id: str, event_type: str, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    result = await trigger_god_mode_event(db, world_id, event_type)
+    return result
+
+@api_router.get("/worlds/{world_id}/stories")
+async def get_stories(world_id: str, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    stories = await db.stories.find({"world_id": world_id}, {"_id": 0}).sort("created_at", -1).limit(20).to_list(20)
+    
+    for story in stories:
+        if isinstance(story.get('created_at'), str):
+            story['created_at'] = datetime.fromisoformat(story['created_at'])
+    
+    return stories
+
+@api_router.get("/worlds/{world_id}/newspaper")
+async def get_newspaper(world_id: str, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    articles = await db.newspapers.find({"world_id": world_id}, {"_id": 0}).sort("published_at", -1).limit(10).to_list(10)
+    
+    for article in articles:
+        if isinstance(article.get('published_at'), str):
+            article['published_at'] = datetime.fromisoformat(article['published_at'])
+    
+    return articles
+
+@api_router.get("/worlds/{world_id}/analytics")
+async def get_analytics(world_id: str, user_id: str = Depends(get_current_user)):
+    world = await db.worlds.find_one({"id": world_id, "user_id": user_id})
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    agents = await db.agents.find({"world_id": world_id}, {"_id": 0}).to_list(1000)
+    
+    wealth_distribution = [a.get('resources', {}).get('wealth', 0) for a in agents]
+    wealth_ranges = {
+        "0-50k": len([w for w in wealth_distribution if w < 50000]),
+        "50k-100k": len([w for w in wealth_distribution if 50000 <= w < 100000]),
+        "100k-200k": len([w for w in wealth_distribution if 100000 <= w < 200000]),
+        "200k+": len([w for w in wealth_distribution if w >= 200000])
+    }
+    
+    occupations = {}
+    for agent in agents:
+        occ = agent.get('occupation', 'Unknown')
+        occupations[occ] = occupations.get(occ, 0) + 1
+    
+    return {
+        "wealth_distribution": wealth_ranges,
+        "occupations": occupations,
+        "total_population": len(agents),
+        "average_happiness": sum(a.get('emotional_state', {}).get('happiness', 70) for a in agents) / len(agents) if agents else 70
+    }
+
+async def run_simulation_loop(world_id: str):
+    """Background task to run simulation continuously"""
+    engine = SimulationEngine(db, world_id)
+    
+    while True:
+        try:
+            await engine.run_simulation_cycle()
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Simulation error for world {world_id}: {e}")
+            await asyncio.sleep(10)
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -77,13 +402,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+    for task in simulation_tasks.values():
+        task.cancel()
