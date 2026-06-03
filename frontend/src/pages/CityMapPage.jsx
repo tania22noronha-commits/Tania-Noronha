@@ -23,9 +23,11 @@ const DISTRICTS = [
 export const CityMapPage = () => {
   const { currentWorld } = useWorld();
   const [agents, setAgents] = useState([]);
+  const [relationships, setRelationships] = useState([]);
   const [selectedDistrict, setSelectedDistrict] = useState(null);
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [hoveredDistrict, setHoveredDistrict] = useState(null);
+  const [showRelationships, setShowRelationships] = useState(true);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -34,17 +36,21 @@ export const CityMapPage = () => {
       navigate('/worlds');
       return;
     }
-    fetchAgents();
-    const interval = setInterval(fetchAgents, 10000);
+    fetchData();
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [currentWorld]);
 
-  const fetchAgents = async () => {
+  const fetchData = async () => {
     try {
-      const response = await axios.get(`${API}/worlds/${currentWorld.id}/agents?limit=100`);
-      setAgents(response.data);
+      const [agentsRes, relationshipsRes] = await Promise.all([
+        axios.get(`${API}/worlds/${currentWorld.id}/agents?limit=100`),
+        axios.get(`${API}/worlds/${currentWorld.id}/relationships`)
+      ]);
+      setAgents(agentsRes.data);
+      setRelationships(relationshipsRes.data);
     } catch (error) {
-      console.error('Failed to fetch agents');
+      console.error('Failed to fetch data');
     } finally {
       setLoading(false);
     }
@@ -71,6 +77,26 @@ export const CityMapPage = () => {
       x: district.x + col * cellWidth + cellWidth / 2,
       y: district.y + row * cellHeight + cellHeight / 2
     };
+  };
+
+  const getAgentPositionById = (agentId) => {
+    const agent = agents.find(a => a.id === agentId);
+    if (!agent) return null;
+    
+    const district = DISTRICTS.find(d => d.name === agent.location?.district);
+    if (!district) return null;
+    
+    return getAgentPosition(agent, district);
+  };
+
+  const getRelationshipColor = (type) => {
+    const colors = {
+      friendship: '#00F0FF',
+      romantic: '#FF003C',
+      professional: '#00FF66',
+      rivalry: '#FFB000'
+    };
+    return colors[type] || '#FFFFFF';
   };
 
   const handleDistrictClick = (district) => {
@@ -108,10 +134,25 @@ export const CityMapPage = () => {
           {/* Map Canvas */}
           <Card className="lg:col-span-2 glass-panel" data-testid="city-map-canvas">
             <CardHeader>
-              <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-[#00F0FF]" />
-                LIVE CITY VIEW
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-[#00F0FF]" />
+                  LIVE CITY VIEW
+                </CardTitle>
+                <Button
+                  data-testid="toggle-relationships-button"
+                  onClick={() => setShowRelationships(!showRelationships)}
+                  size="sm"
+                  variant={showRelationships ? "default" : "outline"}
+                  className={showRelationships 
+                    ? "bg-[#00F0FF]/20 text-[#00F0FF] border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30"
+                    : "text-[#8C92A6] border-[#8C92A6]/30 hover:text-white"
+                  }
+                >
+                  <Heart className="w-4 h-4 mr-2" />
+                  {showRelationships ? 'Hide' : 'Show'} Relationships
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="relative w-full" style={{ height: '500px', background: 'linear-gradient(135deg, #0A0A1A 0%, #050505 100%)' }}>
@@ -123,6 +164,32 @@ export const CityMapPage = () => {
                     </pattern>
                   </defs>
                   <rect width="650" height="500" fill="url(#grid)" />
+
+                  {/* Relationship lines (drawn first, behind agents) */}
+                  {showRelationships && relationships.map((rel) => {
+                    const pos1 = getAgentPositionById(rel.agent1_id);
+                    const pos2 = getAgentPositionById(rel.agent2_id);
+                    
+                    if (!pos1 || !pos2) return null;
+                    
+                    const color = getRelationshipColor(rel.relationship_type);
+                    const opacity = rel.strength / 200; // Scale strength to opacity
+                    
+                    return (
+                      <g key={rel.id}>
+                        <line
+                          x1={pos1.x}
+                          y1={pos1.y}
+                          x2={pos2.x}
+                          y2={pos2.y}
+                          stroke={color}
+                          strokeWidth="1.5"
+                          strokeOpacity={opacity}
+                          strokeDasharray={rel.relationship_type === 'rivalry' ? '4,4' : 'none'}
+                        />
+                      </g>
+                    );
+                  })}
 
                   {/* Districts */}
                   {DISTRICTS.map((district) => {
@@ -230,22 +297,48 @@ export const CityMapPage = () => {
                 </svg>
 
                 {/* Legend */}
-                <div className="absolute bottom-4 right-4 glass-panel p-3 text-xs">
-                  <p className="text-white font-bold mb-2 font-mono">AGENT STATUS</p>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-[#00FF66]"></div>
-                      <span className="text-[#8C92A6]">Happy (70+)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-[#FFB000]"></div>
-                      <span className="text-[#8C92A6]">Neutral (40-70)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-[#FF003C]"></div>
-                      <span className="text-[#8C92A6]">Stressed (&lt;40)</span>
+                <div className="absolute bottom-4 right-4 glass-panel p-3 text-xs space-y-3">
+                  <div>
+                    <p className="text-white font-bold mb-2 font-mono">AGENT STATUS</p>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#00FF66]"></div>
+                        <span className="text-[#8C92A6]">Happy (70+)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#FFB000]"></div>
+                        <span className="text-[#8C92A6]">Neutral (40-70)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#FF003C]"></div>
+                        <span className="text-[#8C92A6]">Stressed (&lt;40)</span>
+                      </div>
                     </div>
                   </div>
+                  
+                  {showRelationships && (
+                    <div className="pt-2 border-t border-white/10">
+                      <p className="text-white font-bold mb-2 font-mono">RELATIONSHIPS</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-px bg-[#00F0FF]"></div>
+                          <span className="text-[#8C92A6]">Friendship</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-px bg-[#FF003C]"></div>
+                          <span className="text-[#8C92A6]">Romance</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-px bg-[#00FF66]"></div>
+                          <span className="text-[#8C92A6]">Professional</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-px bg-[#FFB000] border-dashed"></div>
+                          <span className="text-[#8C92A6]">Rivalry</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -264,7 +357,21 @@ export const CityMapPage = () => {
               {!selectedDistrict && !selectedAgent && (
                 <div className="text-center py-12">
                   <MapPin className="w-16 h-16 text-[#00F0FF]/30 mx-auto mb-4" />
-                  <p className="text-[#8C92A6]">Click on a district or agent to view details</p>
+                  <p className="text-[#8C92A6] mb-4">Click on a district or agent to view details</p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between px-4">
+                      <span className="text-[#8C92A6]">Total Agents</span>
+                      <Badge variant="outline" className="border-[#00F0FF]/30 text-[#00F0FF]">
+                        {agents.length}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between px-4">
+                      <span className="text-[#8C92A6]">Relationships</span>
+                      <Badge variant="outline" className="border-[#FF003C]/30 text-[#FF003C]">
+                        {relationships.length}
+                      </Badge>
+                    </div>
+                  </div>
                 </div>
               )}
 
