@@ -1,0 +1,113 @@
+{
+  "theme": "dark",
+  "archetype": "7 (Electric & Neon)",
+  "emotional_tone": "Futuristic, mysterious, highly technical, immersive.",
+  "colors": {
+    "background": {
+      "primary": "#050505",
+      "secondary": "#0A0A1A",
+      "tertiary": "#11111A"
+    },
+    "surface": {
+      "default": "bg-black/60 backdrop-blur-xl",
+      "elevated": "bg-[#11111A]/80 backdrop-blur-2xl"
+    },
+    "accents": {
+      "primary": "#00F0FF",
+      "secondary": "#FF003C",
+      "tertiary": "#00FF66",
+      "warning": "#FFB000"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#8C92A6",
+      "muted": "#5A607A"
+    },
+    "borders": {
+      "default": "border-white/10",
+      "active": "border-[#00F0FF]/50",
+      "neon_glow": "shadow-[0_0_8px_rgba(0,240,255,0.5)]"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "heading": "'Chivo', sans-serif",
+      "body": "'IBM Plex Sans', sans-serif",
+      "mono": "'JetBrains Mono', monospace"
+    },
+    "scale": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-black",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm text-[#8C92A6]",
+      "overline": "text-xs uppercase tracking-[0.2em] font-mono text-[#00F0FF]"
+    }
+  },
+  "spacing_and_layout": {
+    "protocol": "Bento Grid Protocol - MODE B: THE CONTROL ROOM GRID",
+    "grid_structure": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6",
+    "spans": {
+      "summary_kpi": "col-span-1",
+      "main_map": "col-span-1 md:col-span-2 lg:col-span-3 row-span-2 md:row-span-3",
+      "event_feed": "col-span-1 row-span-2 lg:row-span-3"
+    },
+    "general": "Dense, exact utilization of space. All cards must have h-full to match neighbors."
+  },
+  "surface_strategies": {
+    "dashboard_cards": {
+      "style": "Retro-Futurism & Glassmorphism blend",
+      "classes": "bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden",
+      "hover": "hover:border-[#00F0FF]/40 hover:shadow-[0_0_15px_rgba(0,240,255,0.15)] transition-all duration-300"
+    },
+    "headers": {
+      "style": "Crystal Glass",
+      "classes": "bg-[#050505]/70 backdrop-blur-2xl border-b border-white/10 z-50 sticky top-0"
+    },
+    "buttons": {
+      "primary": "bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/50 hover:bg-[#00F0FF] hover:text-black hover:shadow-[0_0_20px_rgba(0,240,255,0.4)] transition-all font-mono uppercase text-sm px-6 py-2 rounded-md",
+      "god_mode": "bg-[#FF003C]/10 text-[#FF003C] border border-[#FF003C]/50 hover:bg-[#FF003C] hover:text-black hover:shadow-[0_0_20px_rgba(255,0,60,0.4)] transition-all font-mono uppercase text-sm px-6 py-2 rounded-md"
+    }
+  },
+  "motion_and_interactions": {
+    "hover_states": "All interactive elements must shift contrast. Borders light up with neon colors. Text must stay highly legible.",
+    "entrances": "Staggered fade-up for feed items and agents. Use framer-motion.",
+    "live_feed": "Smooth scrolling or new items pushing down old ones seamlessly."
+  },
+  "components": {
+    "icons": "lucide-react (Technical, clean lines)",
+    "charts": "Shadcn/Recharts with neon strokes (e.g. stroke='#00F0FF') and dark, semi-transparent tooltips.",
+    "tables": "Shadcn tables with border-collapse, font-mono for numbers, hover row highlights in subtle cyan.",
+    "data_testid_rule": "All interactive and key informational elements MUST include a data-testid attribute in kebab-case."
+  },
+  "media": {
+    "background_map": {
+      "url": "https://images.unsplash.com/photo-1519608487953-e999c86e7455?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwyfHxjeWJlcnB1bmslMjBjaXR5JTIwbmlnaHR8ZW58MHx8fHwxNzgwNDYwODU1fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Dark cyberpunk city night aesthetic, to be used as a deeply faded, blurred backdrop for the main city map or god mode."
+    },
+    "data_visualizations": {
+      "url": "https://images.pexels.com/photos/27141309/pexels-photo-27141309.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Neon data visualization rings, useful for empty states in charts or decorative elements in the God Mode console."
+    },
+    "agent_portraits": [
+      {
+        "url": "https://images.pexels.com/photos/8108427/pexels-photo-8108427.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Male futuristic agent portrait"
+      },
+      {
+        "url": "https://images.pexels.com/photos/20434858/pexels-photo-20434858.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Female futuristic agent portrait"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the Dark Theme + Electric & Neon archetype.",
+    "Use 'Chivo' for headings, 'IBM Plex Sans' for body, and 'JetBrains Mono' for numbers/metrics. Add them via Google Fonts.",
+    "The layout must feel like a dense, high-tech control room. Utilize the grid heavily without leaving awkward white spaces.",
+    "Use the provided image URLs for agent profiles and map backgrounds. Never use placeholder services.",
+    "Apply data-testid to all interactive and data-bearing elements.",
+    "Use Recharts for the Analytics and Economy systems, utilizing the neon hex codes (#00F0FF, #FF003C) for lines.",
+    "Ensure glassmorphism panels have a 1px border to separate them from the background."
+  ]
+}
