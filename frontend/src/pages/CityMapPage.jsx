@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useWorld } from '@/context/WorldContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -31,17 +31,9 @@ export const CityMapPage = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!currentWorld) {
-      navigate('/worlds');
-      return;
-    }
-    fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
-  }, [currentWorld, navigate]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    if (!currentWorld) return;
+    
     try {
       const [agentsRes, relationshipsRes] = await Promise.all([
         axios.get(`${API}/worlds/${currentWorld.id}/agents?limit=100`),
@@ -54,7 +46,17 @@ export const CityMapPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentWorld]);
+
+  useEffect(() => {
+    if (!currentWorld) {
+      navigate('/worlds');
+      return;
+    }
+    fetchData();
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
+  }, [currentWorld, navigate, fetchData]);
 
   const getAgentsByDistrict = (districtName) => {
     return agents.filter(a => a.location?.district === districtName);

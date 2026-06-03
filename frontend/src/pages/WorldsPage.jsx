@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -20,11 +20,7 @@ export const WorldsPage = () => {
   const navigate = useNavigate();
   const { setCurrentWorld } = useWorld();
 
-  useEffect(() => {
-    fetchWorlds();
-  }, []);
-
-  const fetchWorlds = async () => {
+  const fetchWorlds = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/worlds`);
       setWorlds(response.data);
@@ -33,7 +29,11 @@ export const WorldsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchWorlds();
+  }, [fetchWorlds]);
 
   const createWorld = async () => {
     if (!newWorldName.trim()) {
