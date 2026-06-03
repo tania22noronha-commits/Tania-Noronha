@@ -144,9 +144,15 @@ async def get_world_stats(world_id: str, user_id: str = Depends(get_current_user
     if not world:
         raise HTTPException(status_code=404, detail="World not found")
     
-    agents = await db.agents.find({"world_id": world_id}, {"_id": 0}).to_list(1000)
-    businesses = await db.businesses.find({"world_id": world_id}, {"_id": 0}).to_list(1000)
-    relationships = await db.relationships.find({"world_id": world_id}, {"_id": 0}).to_list(1000)
+    # Optimized: Only fetch required fields for stats calculation
+    agents = await db.agents.find(
+        {"world_id": world_id}, 
+        {"_id": 0, "resources.wealth": 1, "resources.income": 1, "emotional_state.happiness": 1, "occupation": 1}
+    ).to_list(1000)
+    
+    # Optimized: Use count_documents instead of fetching all data
+    business_count = await db.businesses.count_documents({"world_id": world_id})
+    relationship_count = await db.relationships.count_documents({"world_id": world_id})
     government = await db.governments.find_one({"world_id": world_id}, {"_id": 0})
     
     total_wealth = sum(a.get('resources', {}).get('wealth', 0) for a in agents)
@@ -158,7 +164,8 @@ async def get_world_stats(world_id: str, user_id: str = Depends(get_current_user
     
     mayor_name = None
     if government and government.get('mayor_id'):
-        mayor = await db.agents.find_one({"id": government['mayor_id']}, {"_id": 0})
+        # Optimized: Only fetch name field
+        mayor = await db.agents.find_one({"id": government['mayor_id']}, {"_id": 0, "name": 1})
         if mayor:
             mayor_name = mayor['name']
     
@@ -168,10 +175,10 @@ async def get_world_stats(world_id: str, user_id: str = Depends(get_current_user
         deaths=0,
         total_wealth=total_wealth,
         average_income=avg_income,
-        business_count=len(businesses),
+        business_count=business_count,
         employment_rate=employment_rate,
         average_happiness=int(avg_happiness),
-        relationship_count=len(relationships),
+        relationship_count=relationship_count,
         crime_rate=world.get('crime_rate', 5.0),
         trust_index=70,
         mayor_name=mayor_name,
@@ -210,10 +217,22 @@ async def get_agent(world_id: str, agent_id: str, user_id: str = Depends(get_cur
         "$or": [{"agent1_id": agent_id}, {"agent2_id": agent_id}]
     }, {"_id": 0}).to_list(100)
     
+    # Optimized: Batch fetch all agent names instead of N+1 queries
+    agent_ids = []
     for rel in relationships:
         other_id = rel['agent2_id'] if rel['agent1_id'] == agent_id else rel['agent1_id']
-        other_agent = await db.agents.find_one({"id": other_id}, {"_id": 0, "name": 1})
-        rel['other_agent_name'] = other_agent['name'] if other_agent else "Unknown"
+        agent_ids.append(other_id)
+    
+    if agent_ids:
+        agents_list = await db.agents.find(
+            {"id": {"$in": agent_ids}}, 
+            {"_id": 0, "id": 1, "name": 1}
+        ).to_list(len(agent_ids))
+        agents_map = {a['id']: a['name'] for a in agents_list}
+        
+        for rel in relationships:
+            other_id = rel['agent2_id'] if rel['agent1_id'] == agent_id else rel['agent1_id']
+            rel['other_agent_name'] = agents_map.get(other_id, "Unknown")
     
     agent['relationships'] = relationships
     
@@ -244,12 +263,23 @@ async def get_relationships(world_id: str, user_id: str = Depends(get_current_us
     for rel in relationships:
         if isinstance(rel.get('created_at'), str):
             rel['created_at'] = datetime.fromisoformat(rel['created_at'])
+    
+    # Optimized: Batch fetch all agent names instead of N+1 queries
+    agent_ids = []
+    for rel in relationships:
+        agent_ids.extend([rel['agent1_id'], rel['agent2_id']])
+    
+    if agent_ids:
+        unique_agent_ids = list(set(agent_ids))
+        agents_list = await db.agents.find(
+            {"id": {"$in": unique_agent_ids}}, 
+            {"_id": 0, "id": 1, "name": 1}
+        ).to_list(len(unique_agent_ids))
+        agents_map = {a['id']: a['name'] for a in agents_list}
         
-        agent1 = await db.agents.find_one({"id": rel['agent1_id']}, {"_id": 0, "name": 1})
-        agent2 = await db.agents.find_one({"id": rel['agent2_id']}, {"_id": 0, "name": 1})
-        
-        rel['agent1_name'] = agent1['name'] if agent1 else "Unknown"
-        rel['agent2_name'] = agent2['name'] if agent2 else "Unknown"
+        for rel in relationships:
+            rel['agent1_name'] = agents_map.get(rel['agent1_id'], "Unknown")
+            rel['agent2_name'] = agents_map.get(rel['agent2_id'], "Unknown")
     
     return relationships
 
@@ -264,9 +294,19 @@ async def get_businesses(world_id: str, user_id: str = Depends(get_current_user)
     for business in businesses:
         if isinstance(business.get('created_at'), str):
             business['created_at'] = datetime.fromisoformat(business['created_at'])
+    
+    # Optimized: Batch fetch all owner names instead of N+1 queries
+    owner_ids = [b['owner_id'] for b in businesses]
+    
+    if owner_ids:
+        owners_list = await db.agents.find(
+            {"id": {"$in": owner_ids}}, 
+            {"_id": 0, "id": 1, "name": 1}
+        ).to_list(len(owner_ids))
+        owners_map = {a['id']: a['name'] for a in owners_list}
         
-        owner = await db.agents.find_one({"id": business['owner_id']}, {"_id": 0, "name": 1})
-        business['owner_name'] = owner['name'] if owner else "Unknown"
+        for business in businesses:
+            business['owner_name'] = owners_map.get(business['owner_id'], "Unknown")
     
     return businesses
 
@@ -356,7 +396,11 @@ async def get_analytics(world_id: str, user_id: str = Depends(get_current_user))
     if not world:
         raise HTTPException(status_code=404, detail="World not found")
     
-    agents = await db.agents.find({"world_id": world_id}, {"_id": 0}).to_list(1000)
+    # Optimized: Only fetch required fields for analytics
+    agents = await db.agents.find(
+        {"world_id": world_id}, 
+        {"_id": 0, "resources.wealth": 1, "occupation": 1, "emotional_state.happiness": 1}
+    ).to_list(1000)
     
     wealth_distribution = [a.get('resources', {}).get('wealth', 0) for a in agents]
     wealth_ranges = {
