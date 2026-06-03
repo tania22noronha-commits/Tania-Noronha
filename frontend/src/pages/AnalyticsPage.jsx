@@ -19,14 +19,14 @@ export const AnalyticsPage = () => {
       return;
     }
     fetchAnalytics();
-  }, [currentWorld]);
+  }, [currentWorld, navigate]);
 
   const fetchAnalytics = async () => {
     try {
       const response = await axios.get(`${API}/worlds/${currentWorld.id}/analytics`);
       setAnalytics(response.data);
     } catch (error) {
-      console.error('Failed to fetch analytics');
+      // Error fetching analytics - silent fail
     } finally {
       setLoading(false);
     }

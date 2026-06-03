@@ -25,7 +25,7 @@ export const DashboardPage = () => {
     fetchData();
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
-  }, [currentWorld]);
+  }, [currentWorld, navigate]);
 
   const fetchData = async () => {
     if (!currentWorld) return;
@@ -38,7 +38,7 @@ export const DashboardPage = () => {
       setStats(statsRes.data);
       setEvents(eventsRes.data);
     } catch (error) {
-      console.error('Failed to fetch data:', error);
+      // Error fetching data - silent fail
     } finally {
       setLoading(false);
     }

@@ -39,7 +39,7 @@ export const CityMapPage = () => {
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, [currentWorld]);
+  }, [currentWorld, navigate]);
 
   const fetchData = async () => {
     try {
@@ -50,7 +50,7 @@ export const CityMapPage = () => {
       setAgents(agentsRes.data);
       setRelationships(relationshipsRes.data);
     } catch (error) {
-      console.error('Failed to fetch data');
+      // Error fetching data - silent fail
     } finally {
       setLoading(false);
     }

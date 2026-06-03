@@ -19,14 +19,14 @@ export const StoriesPage = () => {
       return;
     }
     fetchStories();
-  }, [currentWorld]);
+  }, [currentWorld, navigate]);
 
   const fetchStories = async () => {
     try {
       const response = await axios.get(`${API}/worlds/${currentWorld.id}/stories`);
       setStories(response.data);
     } catch (error) {
-      console.error('Failed to fetch stories');
+      // Error fetching stories - silent fail for better UX
     } finally {
       setLoading(false);
     }

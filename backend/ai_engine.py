@@ -1,5 +1,5 @@
 import os
-import random
+import random  # Note: Using random for simulation/game logic, not security-critical operations
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 from emergentintegrations.llm.chat import LlmChat, UserMessage

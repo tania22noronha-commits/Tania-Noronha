@@ -27,7 +27,7 @@ export const AgentsPage = () => {
       return;
     }
     fetchAgents();
-  }, [currentWorld]);
+  }, [currentWorld, navigate]);
 
   useEffect(() => {
     if (searchTerm) {
@@ -40,7 +40,7 @@ export const AgentsPage = () => {
     } else {
       setFilteredAgents(agents);
     }
-  }, [searchTerm, agents]);
+  }, [searchTerm, agents, setFilteredAgents]);
 
   const fetchAgents = async () => {
     try {
@@ -48,7 +48,7 @@ export const AgentsPage = () => {
       setAgents(response.data);
       setFilteredAgents(response.data);
     } catch (error) {
-      console.error('Failed to fetch agents');
+      // Error fetching agents - silent fail
     } finally {
       setLoading(false);
     }

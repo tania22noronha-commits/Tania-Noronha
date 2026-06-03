@@ -21,14 +21,14 @@ export const EconomyPage = () => {
     fetchBusinesses();
     const interval = setInterval(fetchBusinesses, 10000);
     return () => clearInterval(interval);
-  }, [currentWorld]);
+  }, [currentWorld, navigate]);
 
   const fetchBusinesses = async () => {
     try {
       const response = await axios.get(`${API}/worlds/${currentWorld.id}/businesses`);
       setBusinesses(response.data);
     } catch (error) {
-      console.error('Failed to fetch businesses');
+      // Error fetching businesses - silent fail
     } finally {
       setLoading(false);
     }

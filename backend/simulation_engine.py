@@ -1,4 +1,4 @@
-import random
+import random  # Note: Using random for simulation/game logic, not security-critical operations
 from typing import List, Dict, Any
 from datetime import datetime, timedelta, timezone
 from models import Agent, Event, Relationship, Business, Memory, Goal

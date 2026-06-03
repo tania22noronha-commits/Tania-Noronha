@@ -1,4 +1,4 @@
-import random
+import random  # Note: Using random for simulation/game logic, not security-critical operations
 from typing import List
 from models import Agent, PersonalityTraits, EmotionalState, Resources, Goal
 

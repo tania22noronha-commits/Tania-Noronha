@@ -22,7 +22,7 @@ export const RelationshipsPage = () => {
       return;
     }
     fetchRelationships();
-  }, [currentWorld]);
+  }, [currentWorld, navigate]);
 
   useEffect(() => {
     if (filterType === 'all') {
@@ -30,7 +30,7 @@ export const RelationshipsPage = () => {
     } else {
       setFilteredRelationships(relationships.filter(r => r.relationship_type === filterType));
     }
-  }, [filterType, relationships]);
+  }, [filterType, relationships, setFilteredRelationships]);
 
   const fetchRelationships = async () => {
     try {
@@ -38,7 +38,7 @@ export const RelationshipsPage = () => {
       setRelationships(response.data);
       setFilteredRelationships(response.data);
     } catch (error) {
-      console.error('Failed to fetch relationships');
+      // Error fetching relationships - silent fail
     } finally {
       setLoading(false);
     }
