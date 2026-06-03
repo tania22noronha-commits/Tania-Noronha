@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, Building2, Heart, Newspaper, BarChart3, Zap, Settings, LogOut, Globe } from 'lucide-react';
+import { LayoutDashboard, Users, Map, Building2, Heart, Newspaper, BarChart3, Zap, Settings, LogOut, Globe } from 'lucide-react';
 
 export const MainLayout = () => {
   const { user, logout } = useAuth();
@@ -16,6 +16,7 @@ export const MainLayout = () => {
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/agents', icon: Users, label: 'Agents' },
+    { to: '/map', icon: Map, label: 'City Map' },
     { to: '/economy', icon: Building2, label: 'Economy' },
     { to: '/relationships', icon: Heart, label: 'Relationships' },
     { to: '/stories', icon: Newspaper, label: 'Stories' },

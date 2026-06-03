@@ -13,6 +13,7 @@ import { WorldsPage } from '@/pages/WorldsPage';
 import { MainLayout } from '@/components/MainLayout';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { AgentsPage } from '@/pages/AgentsPage';
+import { CityMapPage } from '@/pages/CityMapPage';
 import { EconomyPage } from '@/pages/EconomyPage';
 import { RelationshipsPage } from '@/pages/RelationshipsPage';
 import { StoriesPage } from '@/pages/StoriesPage';
@@ -59,6 +60,7 @@ function App() {
               }>
                 <Route path="dashboard" element={<DashboardPage />} />
                 <Route path="agents" element={<AgentsPage />} />
+                <Route path="map" element={<CityMapPage />} />
                 <Route path="economy" element={<EconomyPage />} />
                 <Route path="relationships" element={<RelationshipsPage />} />
                 <Route path="stories" element={<StoriesPage />} />
