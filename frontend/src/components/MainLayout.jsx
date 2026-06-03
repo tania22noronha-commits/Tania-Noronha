@@ -17,7 +17,7 @@ export const MainLayout = () => {
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/agents', icon: Users, label: 'Agents' },
     { to: '/economy', icon: Building2, label: 'Economy' },
-    { to: '/relationships', icon: Heart, label: 'Relations' },
+    { to: '/relationships', icon: Heart, label: 'Relationships' },
     { to: '/stories', icon: Newspaper, label: 'Stories' },
     { to: '/analytics', icon: BarChart3, label: 'Analytics' },
     { to: '/god-mode', icon: Zap, label: 'God Mode' },
