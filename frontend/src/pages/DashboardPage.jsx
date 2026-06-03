@@ -98,7 +98,8 @@ export const DashboardPage = () => {
 
         {/* KPI Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card className="glass-panel hover:border-[#00F0FF]/40 transition-all" data-testid="kpi-population">
+          <Card className="glass-panel hover:border-[#00F0FF]/40 transition-all tech-corners scan-lines holographic relative group" data-testid="kpi-population">
+            <div className="absolute top-2 right-2 w-2 h-2 bg-[#00F0FF] rounded-full animate-pulse"></div>
             <CardHeader className="pb-2">
               <CardTitle className="text-xs uppercase tracking-wider text-[#00F0FF] font-mono flex items-center gap-2">
                 <Users className="w-4 h-4" />
@@ -106,12 +107,13 @@ export const DashboardPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-4xl font-black text-white font-mono">{stats.population}</p>
+              <p className="text-4xl font-black text-white font-mono neon-text-cyan">{stats.population}</p>
               <p className="text-xs text-[#5A607A] mt-1">Active agents</p>
             </CardContent>
           </Card>
 
-          <Card className="glass-panel hover:border-[#00FF66]/40 transition-all" data-testid="kpi-wealth">
+          <Card className="glass-panel hover:border-[#00FF66]/40 transition-all tech-corners scan-lines holographic relative group" data-testid="kpi-wealth">
+            <div className="absolute top-2 right-2 w-2 h-2 bg-[#00FF66] rounded-full animate-pulse" style={{ animationDelay: '0.3s' }}></div>
             <CardHeader className="pb-2">
               <CardTitle className="text-xs uppercase tracking-wider text-[#00FF66] font-mono flex items-center gap-2">
                 <DollarSign className="w-4 h-4" />
@@ -119,14 +121,15 @@ export const DashboardPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-4xl font-black text-white font-mono">
+              <p className="text-4xl font-black text-white font-mono glow-green">
                 ${(stats.total_wealth / 1000000).toFixed(1)}M
               </p>
               <p className="text-xs text-[#5A607A] mt-1">City economy</p>
             </CardContent>
           </Card>
 
-          <Card className="glass-panel hover:border-[#FF003C]/40 transition-all" data-testid="kpi-happiness">
+          <Card className="glass-panel hover:border-[#FF003C]/40 transition-all tech-corners scan-lines holographic relative group" data-testid="kpi-happiness">
+            <div className="absolute top-2 right-2 w-2 h-2 bg-[#FF003C] rounded-full animate-pulse" style={{ animationDelay: '0.6s' }}></div>
             <CardHeader className="pb-2">
               <CardTitle className="text-xs uppercase tracking-wider text-[#FF003C] font-mono flex items-center gap-2">
                 <Heart className="w-4 h-4" />
@@ -134,12 +137,13 @@ export const DashboardPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-4xl font-black text-white font-mono">{stats.average_happiness}%</p>
+              <p className="text-4xl font-black text-white font-mono neon-text-red">{stats.average_happiness}%</p>
               <p className="text-xs text-[#5A607A] mt-1">Avg satisfaction</p>
             </CardContent>
           </Card>
 
-          <Card className="glass-panel hover:border-[#FFB000]/40 transition-all" data-testid="kpi-businesses">
+          <Card className="glass-panel hover:border-[#FFB000]/40 transition-all tech-corners scan-lines holographic relative group" data-testid="kpi-businesses">
+            <div className="absolute top-2 right-2 w-2 h-2 bg-[#FFB000] rounded-full animate-pulse" style={{ animationDelay: '0.9s' }}></div>
             <CardHeader className="pb-2">
               <CardTitle className="text-xs uppercase tracking-wider text-[#FFB000] font-mono flex items-center gap-2">
                 <TrendingUp className="w-4 h-4" />
