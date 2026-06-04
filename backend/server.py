@@ -16,6 +16,7 @@ load_dotenv(ROOT_DIR / ".env")
 
 import market_data as md
 import ai_engine as ai
+import premium_data as pd
 
 # MongoDB
 mongo_url = os.environ["MONGO_URL"]
@@ -159,10 +160,50 @@ async def dashboard(market: str = "both"):
 
 @api.get("/quote/{symbol}")
 async def quote(symbol: str):
-    q = md.fetch_quote(symbol.upper())
+    sym = symbol.upper()
+    q = md.fetch_quote(sym)
+    # If Yahoo Finance has no data, fall back to Alpha Vantage Global Quote
+    if not q:
+        av = pd.alpha_global_quote(sym)
+        if av:
+            q = {
+                "symbol": sym, "name": sym,
+                "price": av["price"], "change": av["change"], "change_pct": av["change_pct"],
+                "currency": "USD", "sector": "Unknown", "industry": "Unknown",
+                "volume": av.get("volume"), "avg_volume": None, "market_cap": None,
+                "pe_ratio": None, "fifty_two_week_high": None, "fifty_two_week_low": None,
+                "day_high": None, "day_low": None, "dividend_yield": None, "beta": None,
+                "analyst_recommendation": None, "target_mean_price": None, "earnings_growth": None,
+            }
     if not q:
         raise HTTPException(404, f"No data for {symbol}")
     return q
+
+
+@api.get("/stock/{symbol}/premium")
+async def stock_premium(symbol: str):
+    """Premium add-on data: analyst targets, recs breakdown, earnings, insiders, intraday."""
+    sym = symbol.upper()
+    cache_key = f"premium:{sym}"
+    cached = await _cache_get(cache_key, ttl_minutes=60)
+    if cached:
+        return cached
+
+    bundle = pd.get_premium_bundle(sym)
+    # Intraday is more rate-limited (AV 25/day) — fetch lazily only when requested.
+    bundle["intraday_available"] = pd.alpha_vantage_enabled()
+    await _cache_set(cache_key, bundle)
+    return bundle
+
+
+@api.get("/stock/{symbol}/intraday")
+async def stock_intraday(symbol: str, interval: str = "5min"):
+    """Alpha Vantage intraday quotes — helpful for Indian symbols where Yahoo lags."""
+    sym = symbol.upper()
+    if not pd.alpha_vantage_enabled():
+        return {"enabled": False, "rows": []}
+    rows = pd.alpha_intraday(sym, interval) or []
+    return {"enabled": True, "interval": interval, "rows": rows}
 
 
 @api.get("/stock/{symbol}/analyze")
@@ -175,9 +216,23 @@ async def stock_analyze(symbol: str):
 
     q = md.fetch_quote(symbol)
     if not q:
+        # Try Alpha Vantage fallback
+        av = pd.alpha_global_quote(symbol)
+        if av:
+            q = {
+                "symbol": symbol, "name": symbol, "price": av["price"],
+                "change": av["change"], "change_pct": av["change_pct"],
+                "currency": "USD", "sector": "Unknown", "industry": "Unknown",
+                "volume": av.get("volume"), "avg_volume": None, "market_cap": None,
+                "pe_ratio": None, "fifty_two_week_high": None, "fifty_two_week_low": None,
+                "day_high": None, "day_low": None, "dividend_yield": None, "beta": None,
+                "analyst_recommendation": None, "target_mean_price": None, "earnings_growth": None,
+            }
+    if not q:
         raise HTTPException(404, f"No data for {symbol}")
     news = md.fetch_news(symbol, limit=8)
-    analysis = await ai.analyze_stock(q, news)
+    premium = pd.get_premium_bundle(symbol)
+    analysis = await ai.analyze_stock(q, news, premium=premium)
 
     # Track recommendation changes -> alerts
     prev = await db.recommendations.find_one({"_id": symbol})
@@ -221,7 +276,7 @@ async def stock_analyze(symbol: str):
     except Exception as e:
         log.warning(f"snapshot save failed for {symbol}: {e}")
 
-    result = {"quote": q, "news": news, "analysis": analysis}
+    result = {"quote": q, "news": news, "analysis": analysis, "premium": premium}
     await _cache_set(cache_key, result)
     return result
 

@@ -55,9 +55,43 @@ async def _ask_json(session_id: str, system: str, prompt: str) -> dict:
 
 # ---------- AI Endpoints ----------
 
-async def analyze_stock(quote: Dict, news: List[Dict]) -> Dict:
+async def analyze_stock(quote: Dict, news: List[Dict], premium: Optional[Dict] = None) -> Dict:
     """Generate BUY/HOLD/SELL recommendation with reasoning."""
     news_block = "\n".join([f"- {n['title']}" for n in news[:8]]) or "No recent news."
+
+    # Optional premium context (Finnhub price targets, analyst recs, insiders, earnings)
+    premium_block = "PREMIUM DATA: none available (Yahoo Finance only)."
+    if premium:
+        bits = []
+        pt = premium.get("price_target")
+        if pt and pt.get("target_mean"):
+            bits.append(
+                f"Finnhub analyst targets: mean ${pt.get('target_mean')}, "
+                f"high ${pt.get('target_high')}, low ${pt.get('target_low')}"
+            )
+        rt = premium.get("recommendation_trend") or []
+        if rt:
+            latest = rt[0]
+            bits.append(
+                f"Analyst rec breakdown ({latest.get('period')}): "
+                f"{latest.get('strong_buy')} strong-buy, {latest.get('buy')} buy, "
+                f"{latest.get('hold')} hold, {latest.get('sell')} sell, "
+                f"{latest.get('strong_sell')} strong-sell"
+            )
+        ins = premium.get("insider_signal")
+        if ins:
+            bits.append(
+                f"Insider transactions (recent): net {ins.get('net_shares')} shares "
+                f"({ins.get('buys_shares')} bought, {ins.get('sells_shares')} sold) — signal {ins.get('signal')}"
+            )
+        earn = premium.get("next_earnings")
+        if earn and earn.get("date"):
+            bits.append(
+                f"Next earnings: {earn.get('date')}"
+                + (f" (EPS est {earn.get('eps_estimate')})" if earn.get("eps_estimate") else "")
+            )
+        if bits:
+            premium_block = "PREMIUM DATA:\n" + "\n".join("- " + b for b in bits)
     system = (
         "You are a senior equity research analyst writing for a private investor. "
         "Be decisive, clear, and use plain English. Always provide reasoning. "
