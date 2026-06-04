@@ -1,0 +1,108 @@
+{
+  "theme": "dark",
+  "archetype": "5 (Luxury)",
+  "design_philosophy": {
+    "vibe": "Private hedge-fund analyst working exclusively for one investor.",
+    "emotion": "Confidence, clarity, authority, and calmness amidst market chaos.",
+    "core_principles": [
+      "No complex charts by default—use sentiment rings, conviction bars, and clear typography.",
+      "Minimal, dark mode, mobile-first design.",
+      "Cards should be cleanly separated with subtle borders and shadows.",
+      "Buy/Sell/Hold signals must be unmistakable and distinctly colored."
+    ]
+  },
+  "colors": {
+    "background": {
+      "base": "#090A0F",
+      "surface": "#12141C",
+      "surface_elevated": "#1A1D27"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#9CA3AF",
+      "tertiary": "#6B7280",
+      "accent": "#E5E7EB"
+    },
+    "signals": {
+      "buy": "#10B981",
+      "buy_bg": "rgba(16, 185, 129, 0.15)",
+      "sell": "#F43F5E",
+      "sell_bg": "rgba(244, 63, 94, 0.15)",
+      "hold": "#F59E0B",
+      "hold_bg": "rgba(245, 158, 11, 0.15)",
+      "sentiment_high": "#10B981",
+      "sentiment_neutral": "#6B7280",
+      "sentiment_low": "#F43F5E"
+    },
+    "borders": {
+      "default": "rgba(255, 255, 255, 0.08)",
+      "strong": "rgba(255, 255, 255, 0.15)"
+    }
+  },
+  "typography": {
+    "font_families": {
+      "heading": "Cabinet Grotesk, sans-serif",
+      "body": "Manrope, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "scales": {
+      "h1": "text-4xl tracking-tighter font-semibold text-white leading-tight",
+      "h2": "text-2xl tracking-tight font-medium text-white",
+      "h3": "text-xl tracking-tight font-medium text-white",
+      "body": "text-base text-gray-400 leading-relaxed",
+      "small": "text-sm text-gray-500",
+      "pill": "text-xs font-bold tracking-[0.1em] uppercase"
+    }
+  },
+  "layout_and_spacing": {
+    "container": "w-full max-w-md mx-auto min-h-screen bg-[#090A0F] text-white overflow-x-hidden relative pb-20",
+    "section_spacing": "py-6 px-4 space-y-6",
+    "card_spacing": "p-5 gap-4",
+    "grid": "grid grid-cols-1 gap-4"
+  },
+  "components": {
+    "card": {
+      "style": "bg-[#12141C] border border-white/5 rounded-3xl p-5 shadow-[0_8px_32px_rgba(0,0,0,0.4)]",
+      "usage": "Use for all major sections: Daily Briefing, Top Opportunities, Portfolio Health."
+    },
+    "pill": {
+      "buy": "px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-bold uppercase tracking-widest border border-emerald-500/20",
+      "sell": "px-3 py-1 rounded-full bg-rose-500/15 text-rose-400 text-xs font-bold uppercase tracking-widest border border-rose-500/20",
+      "hold": "px-3 py-1 rounded-full bg-amber-500/15 text-amber-400 text-xs font-bold uppercase tracking-widest border border-amber-500/20"
+    },
+    "bottom_nav": {
+      "style": "fixed bottom-0 w-full max-w-md bg-[#12141C]/90 backdrop-blur-xl border-t border-white/5 px-6 py-4 flex justify-between items-center z-50",
+      "items": ["Dashboard", "Briefing", "Watchlist", "Portfolio", "Scanner"]
+    },
+    "sentiment_ring": {
+      "style": "relative inline-flex items-center justify-center rounded-full border-4",
+      "usage": "Use to display the market sentiment score (0-100) prominently on the dashboard. Use border colors mapping to the signal colors."
+    },
+    "progress_bar": {
+      "style": "h-2 w-full bg-white/5 rounded-full overflow-hidden",
+      "fill": "h-full bg-emerald-500 rounded-full"
+    }
+  },
+  "media": {
+    "images": [
+      {
+        "category": "ai_avatar_orb",
+        "url": "https://images.pexels.com/photos/12784315/pexels-photo-12784315.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Abstract glowing orb representing the AI Copilot. Use subtly in the background of the Daily Briefing or Header."
+      }
+    ]
+  },
+  "icons": {
+    "library": "@phosphor-icons/react",
+    "style": "weight='duotone' for primary actions, weight='regular' for standard lists."
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the mobile-first constraint. Ensure the root container is constrained via 'max-w-md mx-auto'.",
+    "Ensure 'data-testid' attributes are present on all interactive elements (buttons, nav items, list items).",
+    "Do NOT use HTML <select> or native <input type='date'>. Use Shadcn components appropriately.",
+    "Do NOT use 'Inter' for headings. Stick to 'Cabinet Grotesk' or standard Tailwind sans with tracking-tighter if custom font isn't loaded.",
+    "Rely heavily on clear typography and distinct Pill badges for Buy/Sell/Hold. Avoid showing traditional complex stock charts like candlesticks.",
+    "Use Phosphor icons. Command to install: yarn add @phosphor-icons/react",
+    "For the Sentiment Score (0-100), display it as a prominent circular ring (or semi-circle gauge) in the Dashboard card."
+  ]
+}
