@@ -31,6 +31,8 @@ export const getNews = (symbol?: string) =>
 export const getScanner = (market = "both") => request(`/scanner?market=${market}`);
 export const getQuote = (symbol: string) => request(`/quote/${symbol}`);
 export const analyzeStock = (symbol: string) => request(`/stock/${symbol}/analyze`);
+export const getStockTimeline = (symbol: string, days = 7) =>
+  request(`/stock/${symbol}/timeline?days=${days}`);
 export const searchStocks = (q: string) => request(`/search?q=${encodeURIComponent(q)}`);
 
 // Watchlist

@@ -197,9 +197,96 @@ async def stock_analyze(symbol: str):
             upsert=True,
         )
 
+    # Persist a daily snapshot for the "What changed since yesterday" timeline.
+    # One snapshot per (symbol, date) — re-running analyze the same day overwrites.
+    try:
+        snap = {
+            "symbol": symbol,
+            "date": today_str(),
+            "price": q.get("price"),
+            "change_pct": q.get("change_pct"),
+            "recommendation": analysis.get("recommendation"),
+            "confidence": analysis.get("confidence"),
+            "summary": analysis.get("summary"),
+            "key_risks": analysis.get("key_risks", []),
+            "key_opportunities": analysis.get("key_opportunities", []),
+            "news_count": len(news),
+            "ts": datetime.now(timezone.utc),
+        }
+        await db.snapshots.update_one(
+            {"symbol": symbol, "date": snap["date"]},
+            {"$set": snap},
+            upsert=True,
+        )
+    except Exception as e:
+        log.warning(f"snapshot save failed for {symbol}: {e}")
+
     result = {"quote": q, "news": news, "analysis": analysis}
     await _cache_set(cache_key, result)
     return result
+
+
+@api.get("/stock/{symbol}/timeline")
+async def stock_timeline(symbol: str, days: int = 7):
+    """Return what changed since yesterday + N-day history for a stock."""
+    symbol = symbol.upper()
+    rows = await db.snapshots.find(
+        {"symbol": symbol}, {"_id": 0}
+    ).sort("date", -1).limit(max(days, 2)).to_list(max(days, 2))
+
+    history = []
+    for r in rows:
+        # ts may be datetime — convert to iso string for JSON safety
+        if isinstance(r.get("ts"), datetime):
+            r["ts"] = r["ts"].isoformat()
+        history.append(r)
+
+    diff: Dict[str, Any] = {}
+    if len(history) >= 2:
+        today = history[0]
+        prev = history[1]
+
+        rec_changed = today.get("recommendation") != prev.get("recommendation")
+        price_delta = None
+        if today.get("price") is not None and prev.get("price") not in (None, 0):
+            price_delta = round(
+                (today["price"] - prev["price"]) / prev["price"] * 100, 2
+            )
+
+        conf_delta = None
+        if today.get("confidence") is not None and prev.get("confidence") is not None:
+            conf_delta = today["confidence"] - prev["confidence"]
+
+        prev_risks = set(prev.get("key_risks", []) or [])
+        today_risks = set(today.get("key_risks", []) or [])
+        new_risks = list(today_risks - prev_risks)
+        dropped_risks = list(prev_risks - today_risks)
+
+        prev_opps = set(prev.get("key_opportunities", []) or [])
+        today_opps = set(today.get("key_opportunities", []) or [])
+        new_opps = list(today_opps - prev_opps)
+
+        diff = {
+            "has_previous": True,
+            "prev_date": prev.get("date"),
+            "today_date": today.get("date"),
+            "recommendation_changed": rec_changed,
+            "prev_recommendation": prev.get("recommendation"),
+            "today_recommendation": today.get("recommendation"),
+            "prev_confidence": prev.get("confidence"),
+            "today_confidence": today.get("confidence"),
+            "confidence_delta": conf_delta,
+            "prev_price": prev.get("price"),
+            "today_price": today.get("price"),
+            "price_delta_pct": price_delta,
+            "new_risks": new_risks,
+            "dropped_risks": dropped_risks,
+            "new_opportunities": new_opps,
+        }
+    else:
+        diff = {"has_previous": False}
+
+    return {"symbol": symbol, "diff": diff, "history": history}
 
 
 @api.get("/news")

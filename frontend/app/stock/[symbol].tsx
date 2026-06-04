@@ -7,12 +7,14 @@ import { colors, fontSize, fontWeight, radius, spacing, changeColor, signalColor
 import { Card } from "@/src/components/Card";
 import { LoadingState } from "@/src/components/LoadingState";
 import { SignalPill } from "@/src/components/SignalPill";
-import { analyzeStock, addWatchlist } from "@/src/api";
+import { analyzeStock, addWatchlist, getStockTimeline } from "@/src/api";
+import { ChangeTimeline } from "@/src/components/ChangeTimeline";
 
 export default function StockDetail() {
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
+  const [timeline, setTimeline] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [savedToWatchlist, setSavedToWatchlist] = useState(false);
@@ -21,6 +23,12 @@ export default function StockDetail() {
     try {
       const d = await analyzeStock(symbol);
       setData(d);
+      try {
+        const t = await getStockTimeline(symbol, 7);
+        setTimeline(t);
+      } catch (e) {
+        console.warn("timeline", e);
+      }
     } catch (e) {
       console.warn("analyze", e);
     } finally {
@@ -135,6 +143,11 @@ export default function StockDetail() {
                 ))}
               </Card>
             </View>
+          ) : null}
+
+          {/* What changed since yesterday */}
+          {timeline ? (
+            <ChangeTimeline diff={timeline.diff} history={timeline.history} />
           ) : null}
 
           {/* Opportunities */}
