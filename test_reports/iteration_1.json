@@ -1,0 +1,41 @@
+{
+  "summary": "Backend-only testing for Personal AI Stock Market Copilot. Created /app/backend/tests/test_stock_copilot.py (19 pytest tests covering health, dashboard US/both, quote valid/invalid 404, /stock/{sym}/analyze AI schema, news, scanner, briefing, search, watchlist CRUD, portfolio CRUD + AI analysis, and recommendation-change alert flow). Initial run: 17/19 passing. Found 1 backend bug — /api/dashboard returned HTTP 500 on cache hit due to naive vs. tz-aware datetime subtraction in _cache_get (Motor returns naive UTC datetimes). Applied a minimal fix to /app/backend/server.py to normalize the stored ts to tz-aware before comparing. After fix: 19/19 passing in 10.84s (most AI endpoints served from cache after initial population). All AI-generated responses (analyze, news summary, briefing, portfolio analysis) returned the full documented JSON schema with valid recommendation/confidence/lists/strings. Recommendation-change alert flow verified end-to-end (force-mutated cached rec via MongoDB then re-ran analyze → alert appeared in /api/alerts). yfinance occasionally 404s on TATAMOTORS.NS; server handles gracefully and bulk endpoints still succeed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/dashboard", "issue": "[FIXED by tester] _cache_get subtracted naive datetime (from Mongo) from tz-aware datetime.now(timezone.utc) → 500 on every cache hit. Normalized ts to tz-aware in server.py."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_stock_copilot.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Review the tz-aware datetime fix in server.py::_cache_get (lines ~74-85). Consider applying similar normalization to any other place that reads timestamps from Mongo to avoid recurrence (currently the only consumer).",
+    "Optional: cap dashboard/scanner concurrency or add per-symbol timeouts — yfinance bulk fetch can be slow on first call (~30-60s) before cache warms."
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~470 lines — acceptable for now but watchlist/portfolio/alerts/search could each be split into routers for clarity if it grows.",
+    "ai_engine._extract_json uses greedy regex — works for current prompts but a nested JSON with unbalanced braces in LLM output could fail silently and return {}. Current callers degrade gracefully.",
+    "market_data.fetch_quote relies on yfinance .info which is known to be slow/throttled. Consider yf.download fallback for price-only paths.",
+    "No rate limiting / auth — acceptable per spec (single-user private app)."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (fixed naive-vs-aware datetime bug in _cache_get)",
+    "/app/backend/tests/test_stock_copilot.py (new)",
+    "/app/backend/tests/conftest.py (new)"
+  ],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "not tested per request"},
+  "seed_data_creation": "Tests insert and clean up watchlist MSFT and portfolio AAPL/MSFT. teardown_class deletes portfolio holdings. Alert-flow test temporarily writes to db.recommendations[NVDA] (overwritten on next real analyze).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All endpoints verified live against EXPO_PUBLIC_BACKEND_URL. AI endpoints depend on cache after first run — to re-test cold, clear db.cache before pytest. Recommendation-change test uses pymongo directly to mutate db.recommendations and clear analyze cache; if AI happens to return the same rec as the forced one, the test pytest.skips (cannot validate). yfinance can intermittently 404 on TATAMOTORS.NS which is handled by server.",
+  "rca_of_issue": "Bug: GET /api/dashboard returned 500 on second call. RCA: db.cache stores datetime via motor; pymongo by default decodes BSON UTC datetimes as naive Python datetimes. _cache_get computed (datetime.now(timezone.utc) - row['ts']) → TypeError: can't subtract offset-naive and offset-aware datetimes. Mitigation: in _cache_get, if ts.tzinfo is None, set ts = ts.replace(tzinfo=timezone.utc). Verified by re-running dashboard tests post-fix → 200 OK."
+}
